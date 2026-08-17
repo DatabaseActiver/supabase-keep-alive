@@ -15,7 +15,8 @@ jobs:
         env:
           PROJECTS_JSON: ${{ secrets.SUPABASE_PROJECTS }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          FAILED=0
 
           while IFS= read -r project; do
             URL=$(echo "$project" | jq -r '.url')
@@ -24,7 +25,7 @@ jobs:
 
             echo "Pinging $NAME..."
 
-            curl --fail-with-body \
+            if curl --fail-with-body \
               --silent \
               --show-error \
               --request POST \
@@ -32,8 +33,12 @@ jobs:
               --header "apikey: $KEY" \
               --header "Authorization: Bearer $KEY" \
               --header "Content-Type: application/json" \
-              --data '{}'
-
-            echo
-            echo "$NAME succeeded."
+              --data '{}'; then
+              echo "$NAME succeeded."
+            else
+              echo "$NAME failed."
+              FAILED=1
+            fi
           done < <(echo "$PROJECTS_JSON" | jq -c '.[]')
+
+          exit $FAILED
