@@ -1,0 +1,44 @@
+name: Database Monitor
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping all Supabase projects
+        shell: bash
+        env:
+          PROJECTS_JSON: ${{ secrets.SUPABASE_PROJECTS }}
+        run: |
+          set -uo pipefail
+          FAILED=0
+
+          while IFS= read -r project; do
+            URL=$(echo "$project" | jq -r '.url')
+            KEY=$(echo "$project" | jq -r '.key')
+            NAME=$(echo "$project" | jq -r '.name')
+
+            echo "Pinging $NAME..."
+
+            if curl --fail-with-body \
+              --silent \
+              --show-error \
+              --request POST \
+              --url "$URL/rest/v1/rpc/keep_alive" \
+              --header "apikey: $KEY" \
+              --header "Authorization: Bearer $KEY" \
+              --header "Content-Type: application/json" \
+              --data '{}'; then
+              echo "$NAME succeeded."
+            else
+              echo "$NAME failed."
+              FAILED=1
+            fi
+          done < <(echo "$PROJECTS_JSON" | jq -c '.[]')
+
+          exit $FAILED
